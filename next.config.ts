@@ -1,11 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  swcMinify: true,
-  // Importante para páginas que usam Firebase Authentication
-  experimental: {
-    appDir: true,
-  },
+  // Note: appDir não é mais necessário no Next.js 15+ pois já é o padrão
+  // swcMinify também é padrão agora
 };
 
 module.exports = nextConfig;
