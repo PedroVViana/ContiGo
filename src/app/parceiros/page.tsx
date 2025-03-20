@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/AuthContext';
-import { collection, addDoc, query, where, onSnapshot, deleteDoc, doc, updateDoc } from 'firebase/firestore';
+import { collection, addDoc, query, where, onSnapshot, deleteDoc, doc, updateDoc, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
 // Interface para os parceiros
@@ -19,8 +19,10 @@ export default function Partners() {
   const { currentUser, loading } = useAuth();
   const router = useRouter();
   const [partners, setPartners] = useState<Partner[]>([]);
+  const [newPartnerName, setNewPartnerName] = useState('');
   const [newPartnerEmail, setNewPartnerEmail] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [totalActivePartners, setTotalActivePartners] = useState(0);
 
   // Redirecionar se o usuário não estiver logado
   useEffect(() => {
@@ -40,17 +42,26 @@ export default function Partners() {
 
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const partnersData: Partner[] = [];
+      let activeCount = 0;
+      
       querySnapshot.forEach((doc) => {
         const data = doc.data();
-        partnersData.push({
+        const partner = {
           id: doc.id,
           name: data.name,
           email: data.email,
           status: data.status,
           createdAt: data.createdAt.toDate()
-        });
+        };
+        
+        partnersData.push(partner);
+        if (partner.status === 'ativo') {
+          activeCount++;
+        }
       });
+      
       setPartners(partnersData);
+      setTotalActivePartners(activeCount);
     });
 
     return () => unsubscribe();
@@ -60,19 +71,20 @@ export default function Partners() {
   const handleAddPartner = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!currentUser || !newPartnerEmail) return;
+    if (!currentUser || !newPartnerEmail || !newPartnerName) return;
 
     try {
       await addDoc(collection(db, 'partners'), {
         userId: currentUser.uid,
         email: newPartnerEmail,
-        name: '',
-        status: 'pendente',
+        name: newPartnerName,
+        status: 'ativo', // Mudamos para ativo diretamente para simplificar
         createdAt: new Date(),
         updatedAt: new Date()
       });
       
       // Limpar formulário
+      setNewPartnerName('');
       setNewPartnerEmail('');
       setIsModalOpen(false);
     } catch (error) {
@@ -82,7 +94,7 @@ export default function Partners() {
 
   // Excluir parceiro
   const handleDeletePartner = async (id: string) => {
-    if (confirm('Tem certeza que deseja excluir este parceiro?')) {
+    if (confirm('Tem certeza que deseja excluir este parceiro? Esta ação não afetará despesas já registradas.')) {
       try {
         await deleteDoc(doc(db, 'partners', id));
       } catch (error) {
@@ -124,12 +136,15 @@ export default function Partners() {
       {/* Conteúdo principal */}
       <main className="container mx-auto p-4 mt-6">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-gray-800">Gerenciar Parceiros</h2>
+          <div>
+            <h2 className="text-2xl font-bold text-gray-800">Gerenciar Parceiros</h2>
+            <p className="text-gray-600 mt-1">Total de parceiros ativos: {totalActivePartners}</p>
+          </div>
           <button 
             onClick={() => setIsModalOpen(true)}
             className="bg-[#FF5A5F] text-white px-4 py-2 rounded-md hover:bg-[#E54A4F] transition-colors"
           >
-            Convidar Parceiro
+            Adicionar Parceiro
           </button>
         </div>
         
@@ -141,7 +156,7 @@ export default function Partners() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nome</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data de Convite</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data de Adição</th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
               </tr>
             </thead>
@@ -149,7 +164,7 @@ export default function Partners() {
               {partners.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-6 py-4 text-center text-gray-500">
-                    Nenhum parceiro encontrado. Convide um parceiro usando o botão acima.
+                    Nenhum parceiro encontrado. Adicione parceiros usando o botão acima.
                   </td>
                 </tr>
               ) : (
@@ -178,21 +193,21 @@ export default function Partners() {
                       {partner.createdAt.toLocaleDateString('pt-BR')}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      {partner.status === 'pendente' && (
-                        <>
-                          <button
-                            onClick={() => handleUpdateStatus(partner.id, 'ativo')}
-                            className="text-green-600 hover:text-green-900 mr-3"
-                          >
-                            Aceitar
-                          </button>
-                          <button
-                            onClick={() => handleUpdateStatus(partner.id, 'recusado')}
-                            className="text-yellow-600 hover:text-yellow-900 mr-3"
-                          >
-                            Recusar
-                          </button>
-                        </>
+                      {partner.status !== 'ativo' && (
+                        <button
+                          onClick={() => handleUpdateStatus(partner.id, 'ativo')}
+                          className="text-green-600 hover:text-green-900 mr-3"
+                        >
+                          Ativar
+                        </button>
+                      )}
+                      {partner.status === 'ativo' && (
+                        <button
+                          onClick={() => handleUpdateStatus(partner.id, 'recusado')}
+                          className="text-yellow-600 hover:text-yellow-900 mr-3"
+                        >
+                          Desativar
+                        </button>
                       )}
                       <button
                         onClick={() => handleDeletePartner(partner.id)}
@@ -208,38 +223,32 @@ export default function Partners() {
           </table>
         </div>
         
-        {/* Informações */}
+        {/* Informações sobre parceiros */}
         <div className="mt-8 bg-white p-6 rounded-lg shadow-md">
-          <h3 className="text-xl font-semibold text-gray-800 mb-4">Como funciona?</h3>
+          <h3 className="text-xl font-semibold text-gray-800 mb-4">Como funcionam os parceiros no ContiGo</h3>
           <div className="space-y-4">
-            <div className="flex items-start">
-              <div className="flex-shrink-0 h-10 w-10 rounded-full bg-[#FF5A5F] flex items-center justify-center text-white font-bold">
-                1
-              </div>
-              <div className="ml-4">
-                <h4 className="text-lg font-medium text-gray-900">Convide um parceiro</h4>
-                <p className="mt-1 text-gray-500">Envie um convite para o email do seu parceiro para começar a dividir despesas.</p>
-              </div>
+            <div>
+              <p className="text-gray-600">
+                No ContiGo, você pode adicionar múltiplos parceiros com quem divide suas despesas.
+                Cada despesa pode ser dividida de forma personalizada entre você e seus parceiros.
+              </p>
             </div>
             
-            <div className="flex items-start">
-              <div className="flex-shrink-0 h-10 w-10 rounded-full bg-[#FF5A5F] flex items-center justify-center text-white font-bold">
-                2
-              </div>
-              <div className="ml-4">
-                <h4 className="text-lg font-medium text-gray-900">Seu parceiro aceita o convite</h4>
-                <p className="mt-1 text-gray-500">Eles receberão um email com um link para aceitar o convite e criar uma conta.</p>
-              </div>
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <h4 className="font-medium text-gray-900">Exemplo de uso:</h4>
+              <ol className="list-decimal pl-5 mt-2 text-gray-600 space-y-2">
+                <li>Adicione seus parceiros aqui (família, amigos, colegas de apartamento)</li>
+                <li>Ao registrar uma despesa, selecione quais parceiros participarão</li>
+                <li>Defina como a despesa será dividida entre os participantes</li>
+                <li>O ContiGo calculará automaticamente quanto cada um deve</li>
+              </ol>
             </div>
             
-            <div className="flex items-start">
-              <div className="flex-shrink-0 h-10 w-10 rounded-full bg-[#FF5A5F] flex items-center justify-center text-white font-bold">
-                3
-              </div>
-              <div className="ml-4">
-                <h4 className="text-lg font-medium text-gray-900">Comece a dividir despesas</h4>
-                <p className="mt-1 text-gray-500">Uma vez conectados, vocês podem começar a registrar e dividir despesas juntos.</p>
-              </div>
+            <div className="border-t pt-4">
+              <p className="text-sm text-gray-500">
+                Dica: Você pode ter parceiros diferentes para diferentes tipos de despesas. 
+                Por exemplo, colegas de apartamento para despesas domésticas e familiares para viagens.
+              </p>
             </div>
           </div>
         </div>
@@ -251,11 +260,26 @@ export default function Partners() {
           <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
             <div className="border-b px-6 py-4">
               <h3 className="text-lg font-semibold text-gray-900">
-                Convidar Novo Parceiro
+                Adicionar Novo Parceiro
               </h3>
             </div>
             
             <form onSubmit={handleAddPartner} className="p-6">
+              <div className="mb-4">
+                <label htmlFor="partnerName" className="block text-sm font-medium text-gray-700 mb-1">
+                  Nome do Parceiro
+                </label>
+                <input
+                  type="text"
+                  id="partnerName"
+                  value={newPartnerName}
+                  onChange={(e) => setNewPartnerName(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-[#FF5A5F] focus:border-[#FF5A5F]"
+                  placeholder="Nome do parceiro"
+                  required
+                />
+              </div>
+              
               <div className="mb-4">
                 <label htmlFor="partnerEmail" className="block text-sm font-medium text-gray-700 mb-1">
                   Email do Parceiro
@@ -270,7 +294,7 @@ export default function Partners() {
                   required
                 />
                 <p className="mt-2 text-sm text-gray-500">
-                  Enviaremos um email para seu parceiro com um convite para se juntar ao aplicativo.
+                  Adicione seus parceiros para dividirem despesas com você.
                 </p>
               </div>
               
@@ -279,6 +303,7 @@ export default function Partners() {
                   type="button"
                   onClick={() => {
                     setIsModalOpen(false);
+                    setNewPartnerName('');
                     setNewPartnerEmail('');
                   }}
                   className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500"
@@ -289,7 +314,7 @@ export default function Partners() {
                   type="submit"
                   className="px-4 py-2 bg-[#FF5A5F] text-white rounded-md hover:bg-[#E54A4F] focus:outline-none focus:ring-2 focus:ring-[#FF5A5F]"
                 >
-                  Enviar Convite
+                  Adicionar Parceiro
                 </button>
               </div>
             </form>
