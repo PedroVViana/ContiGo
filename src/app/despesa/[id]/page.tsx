@@ -37,11 +37,10 @@ export default function DespesaDetalhes({ params }: { params: { id: string } }) 
         if (docSnap.exists()) {
           const data = docSnap.data();
           // Garantir que cada split tenha a propriedade 'paid'
-          const normalizedSplits = (data.splits || []).map(split => ({
+          const normalizedSplits = (data.splits || []).map((split: ExpenseSplit) => ({
             ...split,
             paid: split.paid === undefined ? false : split.paid
           }));
-          
           setExpense({
             id: docSnap.id,
             description: data.description,
