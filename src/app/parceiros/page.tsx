@@ -5,17 +5,9 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/AuthContext';
 import { collection, addDoc, query, where, onSnapshot, deleteDoc, doc, updateDoc, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { Partner } from '@/lib/ExpenseModel';
 
-// Interface para os parceiros
-interface Partner {
-  id: string;
-  name: string;
-  email: string;
-  status: 'pendente' | 'ativo' | 'recusado';
-  createdAt: Date;
-}
-
-export default function Partners() {
+export default function PartnersPage() {
   const { currentUser, loading } = useAuth();
   const router = useRouter();
   const [partners, setPartners] = useState<Partner[]>([]);
@@ -23,6 +15,7 @@ export default function Partners() {
   const [newPartnerEmail, setNewPartnerEmail] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [totalActivePartners, setTotalActivePartners] = useState(0);
+  const [isAddingPartner, setIsAddingPartner] = useState(false);
 
   // Redirecionar se o usuário não estiver logado
   useEffect(() => {
@@ -34,84 +27,95 @@ export default function Partners() {
   // Carregar parceiros do Firestore
   useEffect(() => {
     if (!currentUser) return;
-
-    const q = query(
-      collection(db, 'partners'),
-      where('userId', '==', currentUser.uid)
-    );
-
+    
+    const q = query(collection(db, 'partners'), where('userId', '==', currentUser.uid));
+    
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      const partnersData: Partner[] = [];
-      let activeCount = 0;
-      
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
-        const partner = {
-          id: doc.id,
-          name: data.name,
-          email: data.email,
-          status: data.status,
-          createdAt: data.createdAt.toDate()
-        };
-        
-        partnersData.push(partner);
-        if (partner.status === 'ativo') {
-          activeCount++;
-        }
-      });
+      const partnersData = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        userId: doc.data().userId || currentUser.uid,
+        name: doc.data().name,
+        email: doc.data().email,
+        status: doc.data().status,
+        createdAt: doc.data().createdAt?.toDate(),
+        updatedAt: doc.data().updatedAt?.toDate()
+      }));
       
       setPartners(partnersData);
-      setTotalActivePartners(activeCount);
+      setTotalActivePartners(partnersData.filter(p => p.status === 'ativo').length);
     });
-
+    
     return () => unsubscribe();
   }, [currentUser]);
 
-  // Adicionar novo parceiro
-  const handleAddPartner = async (e: React.FormEvent) => {
+  // Adicionar um novo parceiro
+  const addPartner = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!currentUser || !newPartnerEmail || !newPartnerName) return;
-
+    if (!newPartnerName.trim() || !newPartnerEmail.trim() || !currentUser) {
+      return;
+    }
+    
     try {
+      setIsAddingPartner(true);
+      
+      // Verificar se o parceiro já existe
+      const q = query(
+        collection(db, 'partners'), 
+        where('email', '==', newPartnerEmail),
+        where('userId', '==', currentUser.uid)
+      );
+      
+      const querySnapshot = await getDocs(q);
+      
+      if (!querySnapshot.empty) {
+        alert('Um parceiro com este email já existe!');
+        return;
+      }
+      
+      // Adicionar o parceiro ao Firestore
       await addDoc(collection(db, 'partners'), {
         userId: currentUser.uid,
-        email: newPartnerEmail,
         name: newPartnerName,
-        status: 'ativo', // Mudamos para ativo diretamente para simplificar
-        createdAt: new Date(),
-        updatedAt: new Date()
+        email: newPartnerEmail,
+        status: 'pendente',
+        createdAt: new Date()
       });
       
-      // Limpar formulário
+      // Limpar o formulário
       setNewPartnerName('');
       setNewPartnerEmail('');
-      setIsModalOpen(false);
+      setIsAddingPartner(false);
     } catch (error) {
       console.error('Erro ao adicionar parceiro:', error);
-    }
-  };
-
-  // Excluir parceiro
-  const handleDeletePartner = async (id: string) => {
-    if (confirm('Tem certeza que deseja excluir este parceiro? Esta ação não afetará despesas já registradas.')) {
-      try {
-        await deleteDoc(doc(db, 'partners', id));
-      } catch (error) {
-        console.error('Erro ao excluir parceiro:', error);
-      }
+      setIsAddingPartner(false);
     }
   };
 
   // Atualizar status do parceiro
-  const handleUpdateStatus = async (id: string, status: 'pendente' | 'ativo' | 'recusado') => {
+  const updatePartnerStatus = async (partnerId: string, newStatus: 'ativo' | 'recusado') => {
+    if (!currentUser) return;
+    
     try {
-      await updateDoc(doc(db, 'partners', id), {
-        status,
+      await updateDoc(doc(db, 'partners', partnerId), {
+        status: newStatus,
         updatedAt: new Date()
       });
     } catch (error) {
       console.error('Erro ao atualizar status do parceiro:', error);
+    }
+  };
+  
+  // Excluir parceiro
+  const deletePartner = async (partnerId: string) => {
+    if (!currentUser) return;
+    
+    if (window.confirm('Tem certeza que deseja excluir este parceiro?')) {
+      try {
+        await deleteDoc(doc(db, 'partners', partnerId));
+      } catch (error) {
+        console.error('Erro ao excluir parceiro:', error);
+      }
     }
   };
 
@@ -190,31 +194,33 @@ export default function Partners() {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {partner.createdAt.toLocaleDateString('pt-BR')}
+                      {partner.createdAt?.toLocaleDateString('pt-BR')}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      {partner.status !== 'ativo' && (
+                      {partner.status !== 'ativo' && partner.id && (
                         <button
-                          onClick={() => handleUpdateStatus(partner.id, 'ativo')}
+                          onClick={() => updatePartnerStatus(partner.id as string, 'ativo')}
                           className="text-green-600 hover:text-green-900 mr-3"
                         >
-                          Ativar
+                          Aprovar
                         </button>
                       )}
-                      {partner.status === 'ativo' && (
+                      {partner.status === 'ativo' && partner.id && (
                         <button
-                          onClick={() => handleUpdateStatus(partner.id, 'recusado')}
+                          onClick={() => updatePartnerStatus(partner.id as string, 'recusado')}
                           className="text-yellow-600 hover:text-yellow-900 mr-3"
                         >
-                          Desativar
+                          Recusar
                         </button>
                       )}
-                      <button
-                        onClick={() => handleDeletePartner(partner.id)}
-                        className="text-red-600 hover:text-red-900"
-                      >
-                        Excluir
-                      </button>
+                      {partner.id && (
+                        <button
+                          onClick={() => deletePartner(partner.id as string)}
+                          className="text-red-600 hover:text-red-900"
+                        >
+                          Excluir
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))
@@ -264,7 +270,7 @@ export default function Partners() {
               </h3>
             </div>
             
-            <form onSubmit={handleAddPartner} className="p-6">
+            <form onSubmit={addPartner} className="p-6">
               <div className="mb-4">
                 <label htmlFor="partnerName" className="block text-sm font-medium text-gray-700 mb-1">
                   Nome do Parceiro

@@ -1,13 +1,15 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/lib/AuthContext';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Expense, ExpenseSplit } from '@/lib/ExpenseModel';
 
-export default function DespesaDetalhes({ params }: { params: { id: string } }) {
+export default function DespesaDetalhes() {
+  const params = useParams();
+  const id = params?.id as string;
   const { currentUser, loading } = useAuth();
   const router = useRouter();
   const [expense, setExpense] = useState<Expense | null>(null);
@@ -26,12 +28,12 @@ export default function DespesaDetalhes({ params }: { params: { id: string } }) 
 
   // Carregar despesa do Firestore
   useEffect(() => {
-    if (!currentUser || !params.id) return;
+    if (!currentUser || !id) return;
 
     const fetchExpense = async () => {
       try {
         setIsLoading(true);
-        const docRef = doc(db, 'expenses', params.id);
+        const docRef = doc(db, 'expenses', id);
         const docSnap = await getDoc(docRef);
 
         if (docSnap.exists()) {
@@ -67,7 +69,7 @@ export default function DespesaDetalhes({ params }: { params: { id: string } }) 
     };
 
     fetchExpense();
-  }, [currentUser, params.id]);
+  }, [currentUser, id]);
 
   // Inicializar tempSplits quando expense é carregado
   useEffect(() => {

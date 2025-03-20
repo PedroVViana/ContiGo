@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/AuthContext';
 import { collection, addDoc, query, where, onSnapshot, deleteDoc, doc, updateDoc, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Expense, ExpenseSplit, Partner } from '@/lib/ExpenseModel';
+import toast from 'react-hot-toast';
 
 export default function Dashboard() {
   const { currentUser, logout, loading } = useAuth();
