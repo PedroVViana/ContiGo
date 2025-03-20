@@ -1,7 +1,11 @@
-import type { NextConfig } from "next";
-
-const nextConfig: NextConfig = {
-  /* config options here */
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  reactStrictMode: true,
+  swcMinify: true,
+  // Importante para páginas que usam Firebase Authentication
+  experimental: {
+    appDir: true,
+  },
 };
 
-export default nextConfig;
+module.exports = nextConfig;

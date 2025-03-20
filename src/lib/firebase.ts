@@ -4,16 +4,15 @@ import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
 // Configuração do Firebase
-// Nota: Essas credenciais deveriam estar em variáveis de ambiente em um projeto real
 const firebaseConfig = {
-    apiKey: "AIzaSyDIFTiiEz1NhKuU1PMUYGi1YS9cF0pIXLM",
-    authDomain: "contigo-a9a2c.firebaseapp.com",
-    projectId: "contigo-a9a2c",
-    storageBucket: "contigo-a9a2c.firebasestorage.app",
-    messagingSenderId: "852185149598",
-    appId: "1:852185149598:web:632b7238fe08afd9194b8f",
-    measurementId: "G-VHQQWF0648"
-  };
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID
+};
+
 // Inicializa o Firebase
 const app = initializeApp(firebaseConfig);
 
